@@ -114,3 +114,40 @@ if ejecutar_resumen:
 # --------------------
 st.markdown("---")
 st.caption("Puedes validar manualmente exportando los resultados desde el Excel o por revisión cruzada visual en esta interfaz.")
+
+import io
+
+# --------------------
+# 📤 Exportación de resultados a Excel
+# --------------------
+st.header("📁 Exportar Reporte Corporativo")
+
+if st.button("📥 Generar y Descargar Reporte Excel"):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df_erp.to_excel(writer, index=False, sheet_name='ERP')
+        df_banco.to_excel(writer, index=False, sheet_name='Banco')
+        
+        if ejecutar_faltantes:
+            faltantes.to_excel(writer, index=False, sheet_name='Solo en ERP')
+            sobrantes.to_excel(writer, index=False, sheet_name='Solo en Banco')
+        if ejecutar_diferencias:
+            diferencias.to_excel(writer, index=False, sheet_name='Diferencias')
+        if ejecutar_duplicados:
+            duplicados.to_excel(writer, index=False, sheet_name='Duplicados ERP')
+        if ejecutar_exactos:
+            exactos.to_excel(writer, index=False, sheet_name='Coincidencias Exactas')
+
+        # Hoja resumen
+        resumen = pd.DataFrame({
+            'Métrica': ['Facturas ERP', 'Facturas Banco', 'Coincidencias exactas', 'Discrepancias detectadas', 'Facturas no encontradas'],
+            'Valor': [total_facturas_erp, total_facturas_banco, coincidencias, errores, no_encontradas]
+        })
+        resumen.to_excel(writer, index=False, sheet_name='Resumen')
+
+    st.download_button(
+        label="📄 Descargar Reporte Excel",
+        data=output.getvalue(),
+        file_name="Reporte_Auditoria_Caat.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
