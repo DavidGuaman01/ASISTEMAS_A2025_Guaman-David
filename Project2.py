@@ -1,117 +1,137 @@
-
 import streamlit as st
 import pandas as pd
-import datetime
+import io
+from datetime import datetime
 
-# --------------------
-# Configuración inicial
-# --------------------
-st.set_page_config(page_title="CAAT Dinámico", layout="wide")
-st.title("🧾 Auditoría Automatizada - Pruebas CAAT Interactivas")
+# Titulo
+st.set_page_config(page_title="Auditoría CAAT", layout="wide")
+st.title("🔍 Sistema de Auditoría CAAT - Conciliación de Facturas")
+st.markdown("""
+Esta aplicación compara registros de facturación entre dos sistemas (ERP vs Banco) para identificar:
+- Coincidencias exactas
+- Facturas faltantes
+- Diferencias en monto o fecha
+- Duplicados
+""")
 
-st.markdown("Este sistema permite ejecutar pruebas selectivas y validar los resultados de conciliación de facturas entre un ERP y un extracto bancario.")
+# Datos simulados
+erp_data = [
+    {"Factura": "F001", "Fecha": "2025-07-01", "Monto": 100.00},
+    {"Factura": "F002", "Fecha": "2025-07-02", "Monto": 200.00},
+    {"Factura": "F003", "Fecha": "2025-07-03", "Monto": 150.00},
+    {"Factura": "F004", "Fecha": "2025-07-04", "Monto": 180.00},
+    {"Factura": "F005", "Fecha": "2025-07-05", "Monto": 300.00},
+    {"Factura": "F005", "Fecha": "2025-07-05", "Monto": 300.00},  # Duplicado
+]
 
-# --------------------
-# Carga de datos simulados
-# --------------------
-@st.cache_data
-def cargar_datos():
-    df_erp = pd.DataFrame({
-        'Factura': ['F001', 'F002', 'F003', 'F004', 'F005', 'F006', 'F007', 'F007'],
-        'Fecha': pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-04', '2023-01-05', '2023-01-07', '2023-01-10', '2023-01-12', '2023-01-12']),
-        'Monto': [120.00, 250.50, 300.00, 80.00, 410.00, 95.50, 180.00, 180.00],
-        'Cliente': ['CL001', 'CL002', 'CL003', 'CL004', 'CL002', 'CL005', 'CL006', 'CL006']
-    })
+banco_data = [
+    {"Factura": "F001", "Fecha": "2025-07-01", "Monto": 100.00},
+    {"Factura": "F002", "Fecha": "2025-07-02", "Monto": 205.00},  # Diferencia
+    {"Factura": "F003", "Fecha": "2025-07-03", "Monto": 150.00},
+    {"Factura": "F006", "Fecha": "2025-07-06", "Monto": 120.00},
+    {"Factura": "F005", "Fecha": "2025-07-05", "Monto": 300.00},
+]
 
-    df_banco = pd.DataFrame({
-        'Factura': ['F001', 'F002', 'F004', 'F005', 'F006', 'F007', 'F008'],
-        'Fecha': pd.to_datetime(['2023-01-01', '2023-01-02', '2023-01-05', '2023-01-07', '2023-01-10', '2023-01-12', '2023-01-15']),
-        'Monto': [120.00, 250.50, 80.00, 405.00, 95.50, 179.99, 220.00],
-        'Cliente': ['CL001', 'CL002', 'CL004', 'CL002', 'CL005', 'CL006', 'CL007']
-    })
-    return df_erp, df_banco
+# Cargar en DataFrames
+df_erp = pd.DataFrame(erp_data)
+df_banco = pd.DataFrame(banco_data)
 
-df_erp, df_banco = cargar_datos()
+# Convertir fechas
+df_erp['Fecha'] = pd.to_datetime(df_erp['Fecha'])
+df_banco['Fecha'] = pd.to_datetime(df_banco['Fecha'])
 
+# Mostrar datos
+st.subheader("📂 Datos cargados")
 col1, col2 = st.columns(2)
 with col1:
-    st.subheader("📘 Sistema ERP")
+    st.write("**Sistema ERP**")
     st.dataframe(df_erp)
-
 with col2:
-    st.subheader("📗 Extracto Bancario")
+    st.write("**Sistema Banco**")
     st.dataframe(df_banco)
 
-# --------------------
-# Opciones de pruebas interactivas
-# --------------------
-st.header("🧪 Selección de pruebas a ejecutar")
-
-ejecutar_faltantes = st.checkbox("1. Buscar facturas faltantes")
-ejecutar_diferencias = st.checkbox("2. Verificar diferencias de monto o fecha")
-ejecutar_duplicados = st.checkbox("3. Detectar facturas duplicadas")
-ejecutar_exactos = st.checkbox("4. Mostrar coincidencias exactas")
-ejecutar_resumen = st.checkbox("5. Mostrar resumen de resultados y métricas")
-
-# Merge previo
-df_merged = pd.merge(df_erp, df_banco, on=['Factura', 'Cliente'], how='outer', indicator=True, suffixes=('_ERP', '_BANCO'))
+# Selección de pruebas a ejecutar
+st.subheader("⚙️ Selecciona las pruebas a ejecutar")
+ejecutar_exactos = st.checkbox("Coincidencias Exactas", value=True)
+ejecutar_faltantes = st.checkbox("Facturas faltantes en alguno de los sistemas", value=True)
+ejecutar_diferencias = st.checkbox("Diferencias en monto o fecha", value=True)
+ejecutar_duplicados = st.checkbox("Facturas duplicadas", value=True)
 
 # Resultados
+st.subheader("📌 Resultados del Análisis")
+
+# Coincidencias exactas
+if ejecutar_exactos:
+    exactos = pd.merge(df_erp, df_banco, on=['Factura', 'Monto', 'Fecha'])
+    st.success(f"Coincidencias exactas encontradas: {len(exactos)}")
+    st.dataframe(exactos)
+
+# Faltantes
 if ejecutar_faltantes:
-    st.subheader("🔴 Facturas solo en el sistema ERP")
-    faltantes = df_merged[df_merged['_merge'] == 'left_only']
-    st.dataframe(faltantes[['Factura', 'Cliente', 'Fecha_ERP', 'Monto_ERP']])
+    faltantes = df_erp[~df_erp['Factura'].isin(df_banco['Factura'])]
+    sobrantes = df_banco[~df_banco['Factura'].isin(df_erp['Factura'])]
+    st.warning(f"Facturas solo en ERP: {len(faltantes)}")
+    st.dataframe(faltantes)
+    st.warning(f"Facturas solo en Banco: {len(sobrantes)}")
+    st.dataframe(sobrantes)
 
-    st.subheader("🔵 Facturas solo en extracto bancario")
-    sobrantes = df_merged[df_merged['_merge'] == 'right_only']
-    st.dataframe(sobrantes[['Factura', 'Cliente', 'Fecha_BANCO', 'Monto_BANCO']])
-
+# Diferencias
 if ejecutar_diferencias:
-    st.subheader("🟡 Diferencias de monto o fecha")
-    comparables = df_merged[df_merged['_merge'] == 'both']
-    diferencias = comparables[
-        (comparables['Monto_ERP'] != comparables['Monto_BANCO']) |
-        (comparables['Fecha_ERP'] != comparables['Fecha_BANCO'])
-    ]
-    st.dataframe(diferencias[['Factura', 'Cliente', 'Monto_ERP', 'Monto_BANCO', 'Fecha_ERP', 'Fecha_BANCO']])
+    df_merge = pd.merge(df_erp, df_banco, on='Factura', suffixes=('_erp', '_banco'))
+    diferencias = df_merge[(df_merge['Monto_erp'] != df_merge['Monto_banco']) |
+                           (df_merge['Fecha_erp'] != df_merge['Fecha_banco'])]
+    st.error(f"Facturas con diferencias: {len(diferencias)}")
+    st.dataframe(diferencias)
 
+# Duplicados
 if ejecutar_duplicados:
-    st.subheader("⚠️ Duplicados detectados en ERP")
-    duplicados = df_erp[df_erp.duplicated(subset=['Factura', 'Cliente'], keep=False)]
+    duplicados = df_erp[df_erp.duplicated(['Factura', 'Monto', 'Fecha'], keep=False)]
+    st.warning(f"Facturas duplicadas en ERP: {len(duplicados)}")
     st.dataframe(duplicados)
 
-if ejecutar_exactos:
-    st.subheader("✅ Coincidencias exactas")
-    exactos = comparables[
-        (comparables['Monto_ERP'] == comparables['Monto_BANCO']) &
-        (comparables['Fecha_ERP'] == comparables['Fecha_BANCO'])
-    ]
-    st.dataframe(exactos[['Factura', 'Cliente', 'Monto_ERP', 'Fecha_ERP']])
+# Métricas de resumen
+st.subheader("📊 Métricas Generales")
+total_facturas_erp = len(df_erp)
+total_facturas_banco = len(df_banco)
+coincidencias = len(exactos) if ejecutar_exactos else 0
+errores = len(diferencias) if ejecutar_diferencias else 0
+no_encontradas = len(faltantes) + len(sobrantes) if ejecutar_faltantes else 0
 
-if ejecutar_resumen:
-    st.header("📊 Resumen de Verificación y Métricas")
+st.metric("Facturas en ERP", total_facturas_erp)
+st.metric("Facturas en Banco", total_facturas_banco)
+st.metric("Coincidencias", coincidencias)
+st.metric("Errores", errores)
+st.metric("No Encontradas", no_encontradas)
 
-    total_facturas_erp = df_erp['Factura'].nunique()
-    total_facturas_banco = df_banco['Factura'].nunique()
-    coincidencias = exactos.shape[0] if ejecutar_exactos else 0
-    errores = diferencias.shape[0] if ejecutar_diferencias else 0
-    no_encontradas = faltantes.shape[0] + sobrantes.shape[0] if ejecutar_faltantes else 0
+# Exportar reporte Excel
+st.subheader("📥 Generar Reporte Corporativo")
+output = io.BytesIO()
+with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+    df_erp.to_excel(writer, sheet_name='ERP', index=False)
+    df_banco.to_excel(writer, sheet_name='Banco', index=False)
+    if ejecutar_exactos:
+        exactos.to_excel(writer, sheet_name='Coincidencias', index=False)
+    if ejecutar_faltantes:
+        faltantes.to_excel(writer, sheet_name='Solo en ERP', index=False)
+        sobrantes.to_excel(writer, sheet_name='Solo en Banco', index=False)
+    if ejecutar_diferencias:
+        diferencias.to_excel(writer, sheet_name='Diferencias', index=False)
+    if ejecutar_duplicados:
+        duplicados.to_excel(writer, sheet_name='Duplicados', index=False)
 
-    colA, colB, colC = st.columns(3)
-    colA.metric("Facturas ERP", total_facturas_erp)
-    colB.metric("Facturas Banco", total_facturas_banco)
-    colC.metric("Coincidencias exactas", coincidencias)
+    resumen = pd.DataFrame({
+        'Indicador': ['Total ERP', 'Total Banco', 'Coincidencias', 'Errores', 'No Encontradas'],
+        'Valor': [total_facturas_erp, total_facturas_banco, coincidencias, errores, no_encontradas]
+    })
+    resumen.to_excel(writer, sheet_name='Resumen', index=False)
 
-    st.metric("⚠️ Discrepancias detectadas", errores)
-    st.metric("🧾 Facturas no encontradas", no_encontradas)
+st.download_button(
+    label="📊 Descargar Reporte en Excel",
+    data=output.getvalue(),
+    file_name=f"reporte_auditoria_{datetime.today().date()}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
-    st.markdown("**Criterios de aceptación evaluados:**")
-    st.markdown("- Coincidencias exactas ≥ 90% ✔️")
-    st.markdown("- Errores < 10% del total ✔️")
-    st.markdown("- Duplicados ≤ 1 por factura ✔️ (manual)")
-
-# --------------------
-# Validación adicional (opcional)
-# --------------------
+# Pie de página
 st.markdown("---")
-st.caption("Puedes validar manualmente exportando los resultados desde el Excel o por revisión cruzada visual en esta interfaz.")
+st.markdown("Aplicación desarrollada como parte del proyecto de Auditoría CAAT - Semana 3-5")
