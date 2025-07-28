@@ -6,7 +6,7 @@ import datetime
 # Configuración inicial
 # --------------------
 st.set_page_config(page_title="CAAT Dinámico", layout="wide")
-st.title("🧾 Auditoría Automatizada - Pruebas CAAT Interactivas")
+st.title("🧾 Auditoría Automatizada")
 
 st.markdown("Este sistema permite ejecutar pruebas selectivas y validar los resultados de conciliación de facturas entre un ERP y un extracto bancario.")
 
