@@ -1,79 +1,98 @@
 import streamlit as st
 import pandas as pd
-from io import BytesIO
 
-st.set_page_config(page_title="Conciliación CAAT", layout="wide")
+st.set_page_config(page_title="CAAT - Conciliación Financiera", layout="wide")
 
-st.title("🧾 Conciliación de Reportes Financieros - CAAT")
+st.title("📊 CAAT - Conciliación de Reportes Financieros")
 
-st.write("Sube los archivos de Origen y Destino (formato Excel o CSV) para iniciar la conciliación.")
+opcion = st.sidebar.selectbox(
+    "Selecciona la prueba CAAT que deseas ejecutar",
+    [
+        "1. Transacciones Conciliadas Completas",
+        "2. Faltantes en el Destino (Solo en Origen)",
+        "3. Inesperadas en el Destino (Solo en Destino)",
+        "4. Discrepancias por ID (Monto/Fecha)",
+        "5. Duplicados Internos"
+    ]
+)
 
-file1 = st.file_uploader("📁 Archivo de Origen", type=["csv", "xlsx"], key="origen")
-file2 = st.file_uploader("📂 Archivo de Destino", type=["csv", "xlsx"], key="destino")
-
+# Cargar archivo (xlsx o csv)
 def load_data(file):
     if file.name.endswith(".csv"):
         return pd.read_csv(file)
-    else:
-        return pd.read_excel(file)
+    return pd.read_excel(file, engine="openpyxl")
 
-if file1 and file2:
-    df_source = load_data(file1)
-    df_target = load_data(file2)
+# Comparación con dos archivos
+if opcion != "5. Duplicados Internos":
+    file_origen = st.file_uploader("📂 Archivo de Origen", type=["xlsx", "csv"], key="origen")
+    file_destino = st.file_uploader("📁 Archivo de Destino", type=["xlsx", "csv"], key="destino")
+else:
+    file_data = st.file_uploader("📥 Archivo a Analizar (Origen o Destino)", type=["xlsx", "csv"], key="uno")
 
-    st.success("Datos cargados correctamente.")
+# Campos clave
+campos_clave = ["ID_Transaccion", "Fecha", "Monto", "ID_Entidad"]
+campos_id = ["ID_Transaccion", "ID_Entidad"]
 
-    # Estandarización
-    df_source['Fecha'] = pd.to_datetime(df_source['Fecha'])
-    df_target['Fecha'] = pd.to_datetime(df_target['Fecha'])
+# Funcionalidades por prueba
+if opcion == "1. Transacciones Conciliadas Completas" and file_origen and file_destino:
+    df_origen = load_data(file_origen)
+    df_destino = load_data(file_destino)
+    df_origen["Fecha"] = pd.to_datetime(df_origen["Fecha"])
+    df_destino["Fecha"] = pd.to_datetime(df_destino["Fecha"])
 
-    merge_keys = ["ID_Transaccion", "ID_Entidad"]
-    df_merged = pd.merge(df_source, df_target, on=merge_keys, how="outer", indicator=True, suffixes=('_origen', '_destino'))
+    conciliadas = pd.merge(df_origen, df_destino, how="inner", on=campos_clave)
+    st.success(f"✅ {len(conciliadas)} transacciones completamente conciliadas.")
+    st.dataframe(conciliadas, use_container_width=True)
 
-    # 1. Transacciones solo en Origen
-    only_source = df_merged[df_merged['_merge'] == 'left_only']
+    st.download_button("⬇ Descargar", conciliadas.to_csv(index=False).encode(), "conciliadas.csv", "text/csv")
 
-    # 2. Transacciones solo en Destino
-    only_target = df_merged[df_merged['_merge'] == 'right_only']
+elif opcion == "2. Faltantes en el Destino (Solo en Origen)" and file_origen and file_destino:
+    df_origen = load_data(file_origen)
+    df_destino = load_data(file_destino)
+    df_origen["Fecha"] = pd.to_datetime(df_origen["Fecha"])
+    df_destino["Fecha"] = pd.to_datetime(df_destino["Fecha"])
 
-    # 3. Transacciones en ambos pero con discrepancias en Fecha o Monto
-    both = df_merged[df_merged['_merge'] == 'both']
-    discrepancias = both[
-        (both['Monto_origen'] != both['Monto_destino']) |
-        (both['Fecha_origen'] != both['Fecha_destino'])
+    merge = pd.merge(df_origen, df_destino, how="left", on=campos_clave, indicator=True)
+    solo_origen = merge[merge["_merge"] == "left_only"].drop(columns="_merge")
+    st.warning(f"❗ {len(solo_origen)} transacciones solo en el origen.")
+    st.dataframe(solo_origen, use_container_width=True)
+
+    st.download_button("⬇ Descargar", solo_origen.to_csv(index=False).encode(), "solo_origen.csv", "text/csv")
+
+elif opcion == "3. Inesperadas en el Destino (Solo en Destino)" and file_origen and file_destino:
+    df_origen = load_data(file_origen)
+    df_destino = load_data(file_destino)
+    df_origen["Fecha"] = pd.to_datetime(df_origen["Fecha"])
+    df_destino["Fecha"] = pd.to_datetime(df_destino["Fecha"])
+
+    merge = pd.merge(df_destino, df_origen, how="left", on=campos_clave, indicator=True)
+    solo_destino = merge[merge["_merge"] == "left_only"].drop(columns="_merge")
+    st.warning(f"🚨 {len(solo_destino)} transacciones inesperadas solo en el destino.")
+    st.dataframe(solo_destino, use_container_width=True)
+
+    st.download_button("⬇ Descargar", solo_destino.to_csv(index=False).encode(), "solo_destino.csv", "text/csv")
+
+elif opcion == "4. Discrepancias por ID (Monto/Fecha)" and file_origen and file_destino:
+    df_origen = load_data(file_origen)
+    df_destino = load_data(file_destino)
+    df_origen["Fecha"] = pd.to_datetime(df_origen["Fecha"])
+    df_destino["Fecha"] = pd.to_datetime(df_destino["Fecha"])
+
+    merged = pd.merge(df_origen, df_destino, on=campos_id, how="inner", suffixes=("_origen", "_destino"))
+    discrepancias = merged[
+        (merged["Monto_origen"] != merged["Monto_destino"]) |
+        (merged["Fecha_origen"] != merged["Fecha_destino"])
     ]
+    st.warning(f"⚠️ {len(discrepancias)} discrepancias encontradas en Monto o Fecha.")
+    st.dataframe(discrepancias, use_container_width=True)
 
-    # 4. Perfectamente conciliadas
-    perfect = both[
-        (both['Monto_origen'] == both['Monto_destino']) &
-        (both['Fecha_origen'] == both['Fecha_destino'])
-    ]
+    st.download_button("⬇ Descargar", discrepancias.to_csv(index=False).encode(), "discrepancias.csv", "text/csv")
 
-    # 5. Duplicados
-    duplicates_source = df_source[df_source.duplicated(subset=merge_keys, keep=False)]
-    duplicates_target = df_target[df_target.duplicated(subset=merge_keys, keep=False)]
+elif opcion == "5. Duplicados Internos" and file_data:
+    df = load_data(file_data)
+    df["Fecha"] = pd.to_datetime(df["Fecha"])
+    duplicados = df[df.duplicated(subset=campos_clave, keep=False)]
+    st.warning(f"🔁 {len(duplicados)} transacciones duplicadas internas encontradas.")
+    st.dataframe(duplicados, use_container_width=True)
 
-    # Resultados
-    st.subheader("📌 Resumen General")
-    st.write(f"- Transacciones solo en Origen: {len(only_source)}")
-    st.write(f"- Transacciones solo en Destino: {len(only_target)}")
-    st.write(f"- Discrepancias en Monto o Fecha: {len(discrepancias)}")
-    st.write(f"- Conciliadas completamente: {len(perfect)}")
-    st.write(f"- Duplicados en Origen: {len(duplicates_source)}")
-    st.write(f"- Duplicados en Destino: {len(duplicates_target)}")
-
-    # Tablas interactivas
-    def show_df(name, df):
-        st.markdown(f"### 📊 {name}")
-        st.dataframe(df, use_container_width=True)
-        to_excel = BytesIO()
-        df.to_excel(to_excel, index=False)
-        to_excel.seek(0)
-        st.download_button("⬇ Descargar", to_excel, file_name=f"{name}.xlsx")
-
-    show_df("Solo en Origen", only_source)
-    show_df("Solo en Destino", only_target)
-    show_df("Discrepancias", discrepancias)
-    show_df("Conciliadas", perfect)
-    show_df("Duplicados en Origen", duplicates_source)
-    show_df("Duplicados en Destino", duplicates_target)
+    st.download_button("⬇ Descargar", duplicados.to_csv(index=False).encode(), "duplicados.csv", "text/csv")
