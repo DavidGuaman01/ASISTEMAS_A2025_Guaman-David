@@ -96,3 +96,54 @@ elif opcion == "5. Duplicados Internos" and file_data:
     st.dataframe(duplicados, use_container_width=True)
 
     st.download_button("⬇ Descargar", duplicados.to_csv(index=False).encode(), "duplicados.csv", "text/csv")
+
+# Resultados simulados o calculados de tu lógica previa
+conteo_resultados = {
+    "Conciliadas": 42,
+    "Faltantes en destino": 3,
+    "Inesperadas en destino": 4,
+    "Discrepancias de valor": 5,
+    "Duplicados": 3
+}
+
+# Función de recomendaciones
+def generar_recomendacion(nombre, cantidad, umbral, mensaje_ok, mensaje_alerta):
+    if cantidad > umbral:
+        return f"🔴 Riesgo alto detectado en **{nombre}**: {mensaje_alerta}"
+    elif cantidad > 0:
+        return f"🟡 Atención en **{nombre}**: {mensaje_alerta}"
+    else:
+        return f"🟢 **{nombre}** en buen estado: {mensaje_ok}"
+
+# Construir recomendaciones
+recomendaciones = [
+    generar_recomendacion("Transacciones Conciliadas", conteo_resultados["Conciliadas"], 0,
+                          "Conciliación correcta.",
+                          "Verifica registros coincidentes para asegurar integridad."),
+    generar_recomendacion("Transacciones Faltantes", conteo_resultados["Faltantes en destino"], 2,
+                          "No se detectaron omisiones.",
+                          "Posibles errores u omisiones en registro."),
+    generar_recomendacion("Transacciones Inesperadas", conteo_resultados["Inesperadas en destino"], 2,
+                          "No se detectaron ingresos inesperados.",
+                          "Revisar ingresos no respaldados por origen."),
+    generar_recomendacion("Discrepancias de Valor", conteo_resultados["Discrepancias de valor"], 2,
+                          "Fechas y montos están alineados.",
+                          "Existen valores que no coinciden."),
+    generar_recomendacion("Duplicados Internos", conteo_resultados["Duplicados"], 2,
+                          "No se encontraron duplicaciones.",
+                          "Hay registros repetidos que requieren revisión.")
+]
+
+# Mostrar gráfico en Streamlit
+st.subheader("📊 Resumen gráfico de pruebas CAAT")
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.barh(list(conteo_resultados.keys()), list(conteo_resultados.values()), color="steelblue")
+ax.set_xlabel("Cantidad")
+ax.set_title("Resultados Detectados")
+st.pyplot(fig)
+
+# Mostrar recomendaciones
+st.subheader("🧠 Recomendaciones Automáticas")
+for reco in recomendaciones:
+    st.markdown(reco)
+
