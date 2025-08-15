@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import streamlit as st
 import pandas as pd
 
@@ -146,4 +147,5 @@ st.pyplot(fig)
 st.subheader("🧠 Recomendaciones Automáticas")
 for reco in recomendaciones:
     st.markdown(reco)
+
 
