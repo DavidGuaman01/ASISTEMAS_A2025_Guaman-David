@@ -98,16 +98,16 @@ elif opcion == "5. Duplicados Internos" and file_data:
 
     st.download_button("⬇ Descargar", duplicados.to_csv(index=False).encode(), "duplicados.csv", "text/csv")
 
-# Resultados simulados o calculados de tu lógica previa
+# Reemplaza esto por tus conteos REALES calculados
 conteo_resultados = {
-    "Conciliadas": 42,
-    "Faltantes en destino": 3,
-    "Inesperadas en destino": 4,
+    "Conciliadas": 43,
+    "Faltantes en destino": 10,
+    "Inesperadas en destino": 8,
     "Discrepancias de valor": 5,
-    "Duplicados": 3
+    "Duplicados": 6
 }
 
-# Función de recomendaciones
+# Función de recomendaciones basada en conteo real
 def generar_recomendacion(nombre, cantidad, umbral, mensaje_ok, mensaje_alerta):
     if cantidad > umbral:
         return f"🔴 Riesgo alto detectado en **{nombre}**: {mensaje_alerta}"
@@ -116,7 +116,7 @@ def generar_recomendacion(nombre, cantidad, umbral, mensaje_ok, mensaje_alerta):
     else:
         return f"🟢 **{nombre}** en buen estado: {mensaje_ok}"
 
-# Construir recomendaciones
+# Construir recomendaciones automáticas
 recomendaciones = [
     generar_recomendacion("Transacciones Conciliadas", conteo_resultados["Conciliadas"], 0,
                           "Conciliación correcta.",
@@ -135,7 +135,7 @@ recomendaciones = [
                           "Hay registros repetidos que requieren revisión.")
 ]
 
-# Mostrar gráfico en Streamlit
+# Mostrar gráfico y recomendaciones en Streamlit
 st.subheader("📊 Resumen gráfico de pruebas CAAT")
 fig, ax = plt.subplots(figsize=(8, 4))
 ax.barh(list(conteo_resultados.keys()), list(conteo_resultados.values()), color="steelblue")
@@ -143,9 +143,6 @@ ax.set_xlabel("Cantidad")
 ax.set_title("Resultados Detectados")
 st.pyplot(fig)
 
-# Mostrar recomendaciones
 st.subheader("🧠 Recomendaciones Automáticas")
 for reco in recomendaciones:
     st.markdown(reco)
-
-
